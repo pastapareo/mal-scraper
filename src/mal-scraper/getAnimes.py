@@ -3,6 +3,20 @@ import requests
 import pandas as pd
 import time
 import logging
+from argparse import ArgumentParser
+
+
+def get_range():
+    parser = ArgumentParser()
+    parser.add_argument('-r', '--range', type=int, dest='range',
+                        help="range", metavar="Range")
+
+    args = parser.parse_args()
+
+    if (args.range):
+        return(args.range)
+
+    return 1
 
 
 def save_to_csv(animes):
@@ -18,6 +32,7 @@ def save_to_csv(animes):
 logging.basicConfig(filename='../../mal_anime_parser.log', level=logging.INFO)
 
 base_url = 'https://api.jikan.moe/v3'
+up_to = get_range()
 related_types = ['Adaptation', 'Alternative version', 'Alternative setting',
                  'Sequel', 'Prequel', 'Side story', 'Spin-off', 'Character', 'Summary', 'Other']
 
@@ -39,7 +54,7 @@ animes = []
 
 count = 0
 
-for i in range(start, start + 1):
+for i in range(start, start + up_to):
     apiUrl = f'{base_url}/anime/{i}'
     response = requests.get(apiUrl)
 

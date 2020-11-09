@@ -3,6 +3,20 @@ import requests
 import pandas as pd
 import time
 import logging
+from argparse import ArgumentParser
+
+
+def get_range():
+    parser = ArgumentParser()
+    parser.add_argument('-r', '--range', type=int, dest='range',
+                        help="range", metavar="Range")
+
+    args = parser.parse_args()
+
+    if (args.range):
+        return(args.range)
+
+    return 1
 
 
 def save_to_csv(animes):
@@ -18,6 +32,7 @@ def save_to_csv(animes):
 logging.basicConfig(filename='../../mal_person_parser.log', level=logging.INFO)
 
 base_url = 'https://api.jikan.moe/v3'
+up_to = get_range()
 
 # Get the starting point
 master = '../../dataset/person.csv'
@@ -25,7 +40,7 @@ start = 1
 try:
     mDf = pd.read_csv(master)
     start = int(mDf.iloc[-1, 0]) + 1
-    print('Start is: ' + str(start))
+    print(f'Retrieving {up_to} items starting from {str(start)}')
 except pd.io.common.EmptyDataError:
     print('Person dataset is empty!')
     start = 1
@@ -37,7 +52,7 @@ persons = []
 
 count = 0
 
-for i in range(start, start + 1):
+for i in range(start, start + up_to):
     apiUrl = f'{base_url}/person/{i}'
     response = requests.get(apiUrl)
 
