@@ -19,49 +19,32 @@ def get_range():
     return 1
 
 
-def save_to_csv(animes):
+def get_anime(id):
+    apiUrl = f'{base_url}/anime/{id}'
+
+    anime = {}
+    response = object()
+
     try:
-        df = pd.json_normalize(animes)
-        df.to_csv('../../dataset/anime.csv', mode='a',
-                  index=False, header=False)
-    except:
-        logging.error(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ',
-                                    time.gmtime()) + 'Error while saving anime data')
-
-
-logging.basicConfig(filename='../../mal_anime_parser.log', level=logging.INFO)
-
-base_url = 'https://api.jikan.moe/v3'
-up_to = get_range()
-related_types = ['Adaptation', 'Alternative version', 'Alternative setting',
-                 'Sequel', 'Prequel', 'Side story', 'Spin-off', 'Character', 'Summary', 'Other']
-
-# Get the starting point
-master = '../../dataset/anime.csv'
-start = 1
-try:
-    mDf = pd.read_csv(master)
-    start = int(mDf.iloc[-1, 0]) + 1
-    print('Start is: ' + str(start))
-except pd.io.common.EmptyDataError:
-    print('Anime dataset is empty!')
-    start = 1
-except IndexError:
-    print('Anime dataset is empty!')
-    start = 1
-
-animes = []
-
-count = 0
-
-for i in range(start, start + up_to):
-    apiUrl = f'{base_url}/anime/{i}'
-    response = requests.get(apiUrl)
-
-    if response.status_code == 200:
+        response = requests.get(apiUrl)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        tries = 0
+        while tries < 5 and response.status_code != 200:
+            tries += 1
+            response = requests.get(apiUrl)
+    except requests.exceptions.ConnectionError:
+        print('a')
+    except requests.exceptions.HTTPError as e:
+        if (e.response.status_code):
+            logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ',
+                                       time.gmtime()) + 'Anime id=' + str(i) + ' does not exist')
+        else:
+            logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ', time.gmtime()) +
+                         'Error while retrieving ' + str(i) + ' with status code ' + str(response.status_code))
+    else:
         jsonResult = response.json()
 
-        anime = {}
         related_animes = []
 
         for type in related_types:
@@ -110,18 +93,53 @@ for i in range(start, start + up_to):
         anime['ending_themes'] = jsonResult['ending_themes']
         anime['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
+        logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ', time.gmtime()) + 'Successfully retrieved: ' +
+                     jsonResult['title'] + ' id=' + str(id))
+
+    return anime
+
+
+def save_to_csv(animes):
+    try:
+        df = pd.json_normalize(animes)
+        df.to_csv(dataset, mode='a',
+                  index=False, header=False)
+    except:
+        logging.error(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ',
+                                    time.gmtime()) + 'Error while saving anime data')
+
+
+logging.basicConfig(filename='../../mal_anime_parser.log', level=logging.INFO)
+
+base_url = 'https://api.jikan.moe/v3'
+dataset = '../../dataset/anime.csv'
+related_types = ['Adaptation', 'Alternative version', 'Alternative setting',
+                 'Sequel', 'Prequel', 'Side story', 'Spin-off', 'Character', 'Summary', 'Other']
+
+# Get the starting point
+start = 1
+up_to = get_range()
+try:
+    mDf = pd.read_csv(dataset)
+    start = int(mDf.iloc[-1, 0]) + 1
+    print(
+        f'Getting list of animes starting from {str(start)} up to {str(start + up_to - 1)}')
+except pd.io.common.EmptyDataError:
+    print('Anime dataset is empty!')
+    start = 1
+except IndexError as e:
+    print('Anime dataset is empty!')
+    start = 1
+
+animes = []
+
+count = 0
+
+for i in range(start, start + up_to):
+    anime = get_anime(i)
+    if (anime):
         animes.append(anime)
         count = count+1
-
-        logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ', time.gmtime()) + 'Successfully retrieved: ' +
-                     jsonResult['title'] + ' id=' + str(i))
-
-    elif response.status_code == 404:
-        logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ',
-                                   time.gmtime()) + 'Anime id=' + str(i) + ' does not exist')
-    else:
-        logging.info(time.strftime('<%Y-%m-%dT%H:%M:%SZ> ', time.gmtime()) + 'Error while retrieving ' + str(i) +
-                     ' with status code ' + str(response.status_code))
     time.sleep(5)
 
     if(count % 10 == 0 and count != 0):
